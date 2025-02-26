@@ -11,12 +11,13 @@ import (
 
 func NewCmdComment(f *cmdutil.Factory, runF func(*prShared.CommentableOptions) error) *cobra.Command {
 	opts := &prShared.CommentableOptions{
-		IO:                    f.IOStreams,
-		HttpClient:            f.HttpClient,
-		EditSurvey:            prShared.CommentableEditSurvey(f.Config, f.IOStreams),
-		InteractiveEditSurvey: prShared.CommentableInteractiveEditSurvey(f.Config, f.IOStreams),
-		ConfirmSubmitSurvey:   prShared.CommentableConfirmSubmitSurvey,
-		OpenInBrowser:         f.Browser.Browse,
+		IO:                        f.IOStreams,
+		HttpClient:                f.HttpClient,
+		EditSurvey:                prShared.CommentableEditSurvey(f.Config, f.IOStreams),
+		InteractiveEditSurvey:     prShared.CommentableInteractiveEditSurvey(f.Config, f.IOStreams),
+		ConfirmSubmitSurvey:       prShared.CommentableConfirmSubmitSurvey(f.Prompter),
+		ConfirmCreateIfNoneSurvey: prShared.CommentableInteractiveCreateIfNoneSurvey(f.Prompter),
+		OpenInBrowser:             f.Browser.Browse,
 	}
 
 	var bodyFile string
@@ -40,7 +41,11 @@ func NewCmdComment(f *cmdutil.Factory, runF func(*prShared.CommentableOptions) e
 				if err != nil {
 					return nil, nil, err
 				}
-				return issueShared.IssueFromArgWithFields(httpClient, f.BaseRepo, args[0], []string{"id", "url"})
+				fields := []string{"id", "url"}
+				if opts.EditLast {
+					fields = append(fields, "comments")
+				}
+				return issueShared.IssueFromArgWithFields(httpClient, f.BaseRepo, args[0], fields)
 			}
 			return prShared.CommentablePreRun(cmd, opts)
 		},
@@ -64,6 +69,8 @@ func NewCmdComment(f *cmdutil.Factory, runF func(*prShared.CommentableOptions) e
 	cmd.Flags().StringVarP(&bodyFile, "body-file", "F", "", "Read body text from `file` (use \"-\" to read from standard input)")
 	cmd.Flags().BoolP("editor", "e", false, "Skip prompts and open the text editor to write the body in")
 	cmd.Flags().BoolP("web", "w", false, "Open the web browser to write the comment")
+	cmd.Flags().BoolVar(&opts.EditLast, "edit-last", false, "Edit the last comment of the same author")
+	cmd.Flags().BoolVar(&opts.CreateIfNone, "create-if-none", false, "Create a new comment if no comments are found. Can be used only with --edit-last")
 
 	return cmd
 }
